@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from './context/AppContext';
+import { AuthScreen } from './components/AuthScreen';
 import { ThemeToggle } from './components/ThemeToggle';
 import { HealthAssessment } from './components/HealthAssessment';
 import { EligibilityChecker } from './components/EligibilityChecker';
@@ -19,6 +20,7 @@ import { CustomerSupport } from './components/CustomerSupport';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DocumentVerification } from './components/DocumentVerification';
 import { LoanInterestCalculatorModal } from './components/LoanInterestCalculatorModal';
+import { ProfileScreen } from './components/ProfileScreen';
 import {
   Sparkles, ShieldCheck, Activity, Award, Scale, HelpCircle,
   Bell, User, ShieldX, Key, Menu, X, Landmark, HeartHandshake, LogOut, Check, Edit, FileText, Calculator
@@ -33,30 +35,19 @@ export default function App() {
     notifications,
     profile,
     setProfile,
-    addAuditLog
+    addAuditLog,
+    supabaseUser,
+    signOutSupabase
   } = useApp();
+
+  // If there is no active session, redirect to the real Supabase AuthScreen
+  if (!supabaseUser) {
+    return <AuthScreen />;
+  }
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
-
-  // Profile temporary edit form states
-  const [tempName, setTempName] = useState(profile.fullName);
-  const [tempIncome, setTempIncome] = useState(profile.monthlyIncome);
-  const [tempEmployment, setTempEmployment] = useState(profile.employmentStatus);
-
-  const handleUpdateProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfile({
-      ...profile,
-      fullName: tempName,
-      monthlyIncome: tempIncome,
-      employmentStatus: tempEmployment
-    });
-    addAuditLog('user@borrowright.ai', 'PROFILE_UPDATE', `Modified personal monthly income to ₦${tempIncome.toLocaleString()}`);
-    setShowProfileModal(false);
-  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity, roles: ['user', 'admin'] },
@@ -70,6 +61,7 @@ export default function App() {
     { id: 'emergency', label: 'Emergency Finder', icon: HeartHandshake, roles: ['user'] },
     { id: 'compliance', label: 'Compliance Hub', icon: Landmark, roles: ['user'] },
     { id: 'support', label: 'Support Escalations', icon: HelpCircle, roles: ['user'] },
+    { id: 'profile', label: 'Profile & Settings', icon: User, roles: ['user', 'admin'] },
     { id: 'admin', label: 'Admin Operations', icon: Key, roles: ['admin'] }
   ];
 
@@ -99,6 +91,8 @@ export default function App() {
         return <ComplianceHub />;
       case 'support':
         return <CustomerSupport />;
+      case 'profile':
+        return <ProfileScreen />;
       case 'admin':
         return <AdminDashboard />;
       default:
@@ -146,20 +140,36 @@ export default function App() {
         {/* Footer info in sidebar */}
         <div className="p-4 border-t border-slate-50 dark:border-slate-850 space-y-3">
           <div className="flex items-center gap-2 px-2">
-            <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs uppercase">
-              {profile.fullName.slice(0, 2)}
-            </div>
+            {profile.avatarUrl ? (
+              <img 
+                src={profile.avatarUrl} 
+                alt="Avatar" 
+                referrerPolicy="no-referrer"
+                className="h-8 w-8 rounded-full object-cover" 
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs uppercase">
+                {profile.fullName ? profile.fullName.slice(0, 2) : 'U'}
+              </div>
+            )}
             <div className="truncate">
-              <span className="text-xs font-bold block truncate">{profile.fullName}</span>
+              <span className="text-xs font-bold block truncate">{profile.fullName || 'No Name Set'}</span>
               <span className="text-[10px] text-slate-400 block truncate">{profile.email}</span>
             </div>
           </div>
           <button
             id="edit-profile-trigger"
-            onClick={() => setShowProfileModal(true)}
+            onClick={() => setActiveTab('profile')}
             className="w-full bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-850 text-slate-500 hover:text-slate-700 text-[10px] py-1.5 rounded-lg font-bold border border-slate-100 dark:border-slate-850 cursor-pointer flex items-center justify-center gap-1"
           >
             <Edit className="h-3 w-3" /> Update Profile
+          </button>
+          <button
+            id="sidebar-logout-btn"
+            onClick={signOutSupabase}
+            className="w-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[10px] py-1.5 rounded-lg font-bold border border-rose-100/55 dark:border-rose-900/20 cursor-pointer flex items-center justify-center gap-1"
+          >
+            <LogOut className="h-3 w-3" /> Sign Out
           </button>
         </div>
       </aside>
@@ -304,76 +314,6 @@ export default function App() {
               </nav>
             </div>
           </aside>
-        </div>
-      )}
-
-      {/* 4. Profile Edit Modal */}
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-slate-950/45 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleUpdateProfile}
-            id="update-profile-modal-form"
-            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 animate-scaleUp"
-          >
-            <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-sm uppercase tracking-wide text-slate-400">Update Profile Context</h3>
-              <button
-                id="close-profile-modal"
-                type="button"
-                onClick={() => setShowProfileModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="h-4.5 w-4.5" />
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
-              <input
-                id="profile-edit-name"
-                type="text"
-                required
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-emerald-500 font-semibold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Declared Monthly Salary (₦)</label>
-              <input
-                id="profile-edit-income"
-                type="number"
-                required
-                value={tempIncome}
-                onChange={(e) => setTempIncome(Number(e.target.value))}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-emerald-500 font-semibold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Employment Category</label>
-              <select
-                id="profile-edit-employment"
-                value={tempEmployment}
-                onChange={(e) => setTempEmployment(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 font-semibold"
-              >
-                <option value="Employed">Salary Earner</option>
-                <option value="Self-Employed">Business Owner</option>
-                <option value="Student">Student</option>
-                <option value="Unemployed">Unemployed</option>
-              </select>
-            </div>
-
-            <button
-              id="save-profile-btn"
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer shadow-sm"
-            >
-              Save Profile Updates
-            </button>
-          </form>
         </div>
       )}
 

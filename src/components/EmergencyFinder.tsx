@@ -5,12 +5,11 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { mockProducts, mockLenders } from '../data/mockLenders';
 import { ShieldAlert, CheckCircle2, Search, ArrowRight, ShieldCheck, Zap, AlertTriangle, Sparkles } from 'lucide-react';
 import { LenderProduct } from '../types';
 
 export const EmergencyFinder: React.FC = () => {
-  const { profile } = useApp();
+  const { profile, lenders, products } = useApp();
   const [urgency, setUrgency] = useState<'Low' | 'Medium' | 'High'>('High');
   const [requestedAmount, setRequestedAmount] = useState<number>(150000);
   const [employmentType, setEmploymentType] = useState<string>(profile.employmentStatus);
@@ -28,8 +27,8 @@ export const EmergencyFinder: React.FC = () => {
 
     // Filter simulation
     setTimeout(() => {
-      const results = mockProducts.filter(prod => {
-        const lender = mockLenders.find(l => l.id === prod.lenderId);
+      const results = products.filter(prod => {
+        const lender = lenders.find(l => l.id === prod.lenderId);
         if (!lender) return false;
 
         // Amount fits
@@ -49,7 +48,7 @@ export const EmergencyFinder: React.FC = () => {
       // Auto generate explanations local simulation
       const matchExplanations: Record<string, string> = {};
       results.forEach(prod => {
-        const speed = mockLenders.find(l => l.id === prod.lenderId)?.approvalSpeed;
+        const speed = lenders.find(l => l.id === prod.lenderId)?.approvalSpeed;
         matchExplanations[prod.id] = `This CBN-regulated option is selected because of its '${speed}' processing speed, satisfying your high-urgency requirement of ₦${requestedAmount.toLocaleString()} without any collateral obligations, which avoids compounding debt traps.`;
       });
       setExplanations(matchExplanations);
@@ -183,7 +182,7 @@ export const EmergencyFinder: React.FC = () => {
               {matches.length > 0 ? (
                 <div className="space-y-4">
                   {matches.map(prod => {
-                    const lender = mockLenders.find(l => l.id === prod.lenderId);
+                    const lender = lenders.find(l => l.id === prod.lenderId);
                     return (
                       <div key={prod.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-rose-100/50 dark:hover:border-rose-950/20 transition-all space-y-4">
                         <div className="flex justify-between items-start gap-4">

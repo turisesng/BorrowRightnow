@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Calendar, ChevronRight, Clock, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, FileDown } from 'lucide-react';
 import { LoanPaymentEstimator } from './LoanPaymentEstimator';
 import { exportFinancialSummaryPdf } from '../utils/pdfExport';
+import { SupabaseSyncPanel } from './SupabaseSyncPanel';
 
 export const LoanDashboard: React.FC = () => {
   const { profile, healthScore, debts } = useApp();
@@ -67,6 +68,8 @@ export const LoanDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <SupabaseSyncPanel />
 
       {/* Main active loans tracking */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { mockProducts } from '../data/mockLenders';
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
 import { LenderProduct } from '../types';
 import { 
   BarChart, 
@@ -22,10 +22,17 @@ import {
 } from 'lucide-react';
 
 export const LenderComparisonChart: React.FC = () => {
+  const { products } = useApp();
+  
   // Local state to keep track of checked products for the chart
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
-    mockProducts.map(p => p.id)
+    products.map(p => p.id)
   );
+
+  // Sync selectedProductIds when products load/update dynamically
+  useEffect(() => {
+    setSelectedProductIds(products.map(p => p.id));
+  }, [products]);
 
   const toggleProductSelection = (id: string) => {
     setSelectedProductIds(prev => {
@@ -40,18 +47,18 @@ export const LenderComparisonChart: React.FC = () => {
   };
 
   const selectAll = () => {
-    setSelectedProductIds(mockProducts.map(p => p.id));
+    setSelectedProductIds(products.map(p => p.id));
   };
 
   const selectNone = () => {
     // Keep at least the first one selected
-    if (mockProducts.length > 0) {
-      setSelectedProductIds([mockProducts[0].id]);
+    if (products.length > 0) {
+      setSelectedProductIds([products[0].id]);
     }
   };
 
   // Filter selected products for the chart data
-  const selectedProducts = mockProducts.filter(p => selectedProductIds.includes(p.id));
+  const selectedProducts = products.filter(p => selectedProductIds.includes(p.id));
 
   // Build formatted chart data
   const chartData = selectedProducts.map(prod => {
@@ -77,11 +84,11 @@ export const LenderComparisonChart: React.FC = () => {
   // Calculate some fun comparison metrics
   const lowestAprProduct = selectedProducts.reduce((lowest, current) => {
     return current.apr < lowest.apr ? current : lowest;
-  }, selectedProducts[0] || mockProducts[0]);
+  }, selectedProducts[0] || products[0]);
 
   const lowestMonthlyProduct = selectedProducts.reduce((lowest, current) => {
     return current.maxInterestRate < lowest.maxInterestRate ? current : lowest;
-  }, selectedProducts[0] || mockProducts[0]);
+  }, selectedProducts[0] || products[0]);
 
   return (
     <div 
@@ -136,7 +143,7 @@ export const LenderComparisonChart: React.FC = () => {
             Select Lenders to Compare
           </span>
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-            {mockProducts.map((prod) => {
+            {products.map((prod) => {
               const isChecked = selectedProductIds.includes(prod.id);
               return (
                 <button

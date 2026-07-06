@@ -5,12 +5,11 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { mockLenders, mockProducts } from '../data/mockLenders';
 import { ShieldAlert, Users, Layers, AlertOctagon, MessagesSquare, FileText, Settings, Key, Trash2, Check, RefreshCw, Sparkles, Sliders } from 'lucide-react';
 import { ScamReport, SupportTicket } from '../types';
 
 export const AdminDashboard: React.FC = () => {
-  const { scamReports, setScamReports, supportTickets, setSupportTickets, auditLogs, systemSettings, setSystemSettings, addAuditLog, addNotification } = useApp();
+  const { scamReports, setScamReports, supportTickets, setSupportTickets, auditLogs, systemSettings, setSystemSettings, addAuditLog, addNotification, lenders } = useApp();
   const [activeAdminTab, setActiveAdminTab] = useState<'overview' | 'lenders' | 'scams' | 'tickets' | 'prompts' | 'audit'>('overview');
 
   // Simulated Users list for management
@@ -102,7 +101,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
               <span className="text-xs font-semibold text-slate-400 block uppercase">Licensed Institutions</span>
-              <span className="text-2xl font-black mt-1 block">{mockLenders.length}</span>
+              <span className="text-2xl font-black mt-1 block">{lenders.length}</span>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
               <span className="text-xs font-semibold text-slate-400 block uppercase">Threat Escalations</span>
@@ -165,7 +164,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
             <h3 className="font-bold text-sm uppercase tracking-wide text-slate-400 border-b border-slate-50 dark:border-slate-850 pb-3">Lender Register</h3>
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {mockLenders.map(l => (
+              {lenders.map(l => (
                 <div key={l.id} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl text-xs space-y-1">
                   <div className="flex justify-between font-bold">
                     <span>{l.name}</span>

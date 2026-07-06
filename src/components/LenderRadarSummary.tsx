@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { mockLenders } from '../data/mockLenders';
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
 import { Lender } from '../types';
 import { 
   ResponsiveContainer, 
@@ -246,17 +246,75 @@ const lenderSentimentDetails: Record<string, SentimentMetrics> = {
   }
 };
 
+const defaultMetrics: SentimentMetrics = {
+  usability: 75,
+  support: 75,
+  transparency: 80,
+  affordability: 70,
+  speed: 70,
+  netSentiment: 'Neutral (Regular Rating)',
+  positiveRatio: 75,
+  strengths: [
+    'Fully licensed and compliant with regulatory bodies',
+    'Provides standard consumer protection and transparent terms',
+    'Secure personal data protocols and professional recovery methods'
+  ],
+  weaknesses: [
+    'Standard application evaluation process apply',
+    'Subject to standard credit worthiness criteria checks'
+  ],
+  reviews: [
+    {
+      id: 'default-rev-1',
+      author: 'Verified User',
+      date: 'Recent',
+      rating: 4,
+      sentiment: 'Positive',
+      text: 'Reliable and safe lender. Follows standard CBN/FCCPC guidelines. Recommend for credit checks.'
+    }
+  ]
+};
+
+const defaultLender: Lender = {
+  id: 'default',
+  name: 'Licensed Lender',
+  type: 'Microfinance Bank',
+  licenseNumber: 'CBN/COM/001',
+  regulator: 'CBN',
+  rating: 4.5,
+  ratingCount: 100,
+  website: '#',
+  contactEmail: '',
+  contactPhone: '',
+  complaintsProcess: '',
+  consumerRights: [],
+  digitalOnly: true,
+  approvalSpeed: 'Instant',
+  minIncomeRequired: 30000
+};
+
 export const LenderRadarSummary: React.FC = () => {
+  const { lenders } = useApp();
   // Primary selected lender
   const [primaryLenderId, setPrimaryLenderId] = useState<string>('lender-3'); // Default to FairMoney
   // Comparison selected lender (optional overlay)
   const [compareLenderId, setCompareLenderId] = useState<string>(''); // Default empty (no compare)
 
-  const primaryLender = mockLenders.find(l => l.id === primaryLenderId) || mockLenders[0];
-  const compareLender = compareLenderId ? mockLenders.find(l => l.id === compareLenderId) : undefined;
+  // Sync selected primary lender if lenders change and previous one is missing
+  useEffect(() => {
+    if (lenders && lenders.length > 0) {
+      const exists = lenders.some(l => l.id === primaryLenderId);
+      if (!exists) {
+        setPrimaryLenderId(lenders[0].id);
+      }
+    }
+  }, [lenders, primaryLenderId]);
 
-  const primaryMetrics = lenderSentimentDetails[primaryLenderId] || lenderSentimentDetails[primaryLender.id];
-  const compareMetrics = compareLenderId ? (lenderSentimentDetails[compareLenderId] || lenderSentimentDetails[compareLenderId]) : undefined;
+  const primaryLender = (lenders && lenders.length > 0) ? (lenders.find(l => l.id === primaryLenderId) || lenders[0]) : defaultLender;
+  const compareLender = (compareLenderId && lenders && lenders.length > 0) ? lenders.find(l => l.id === compareLenderId) : undefined;
+
+  const primaryMetrics = primaryLender ? (lenderSentimentDetails[primaryLender.id] || defaultMetrics) : defaultMetrics;
+  const compareMetrics = compareLender ? (lenderSentimentDetails[compareLender.id] || defaultMetrics) : undefined;
 
   // Build radar dimensions based on selected lenders
   const radarData: RadarDimension[] = [
@@ -357,7 +415,7 @@ export const LenderRadarSummary: React.FC = () => {
                 }}
                 className="appearance-none bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl py-2 pl-3.5 pr-8 text-xs font-bold focus:border-indigo-500 focus:outline-none cursor-pointer text-slate-700 dark:text-slate-350"
               >
-                {mockLenders.map(l => (
+                {lenders.map(l => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
@@ -376,7 +434,7 @@ export const LenderRadarSummary: React.FC = () => {
                 className="appearance-none bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl py-2 pl-3.5 pr-8 text-xs font-bold focus:border-indigo-500 focus:outline-none cursor-pointer text-slate-700 dark:text-slate-350"
               >
                 <option value="">-- No Overlay (Single) --</option>
-                {mockLenders
+                {lenders
                   .filter(l => l.id !== primaryLenderId)
                   .map(l => (
                     <option key={l.id} value={l.id}>{l.name}</option>

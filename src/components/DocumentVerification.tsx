@@ -186,14 +186,14 @@ Direct Debit Authorization: Borrower authorizes QuickPay Capital to place a cont
 
   const intelPresetTexts: Record<string, string> = {
     bank_statement_incomplete: `BANK STATEMENT PRESET CONTENT
-Account Holder: Debbie Ijogbonna
+Account Holder: ${profile.fullName || 'Debbie Ijogbonna'}
 Period: March 1, 2026 to May 31, 2026 (Only 3 months uploaded out of 6 standard months requirement)
 Average Balance: ₦2,100 (Extremely low relative to monthly salary)
-Salary Credit: ₦280,000 net deposits monthly (Discrepancy: Profile declares ₦350,000 monthly income)
+Salary Credit: ₦280,000 net deposits monthly (Discrepancy: Profile declares ₦${(profile.monthlyIncome || 350000).toLocaleString()} monthly income)
 Flagged transactions: 4 rapid debits to PalmCredits and QuickPay. No electronic bank stamp or QR verification seal.`,
     payslip_blurry: `SALARY SLIP PRESET CONTENT
 Employer: Interswitch Limited
-Employee Name: Debbie Ijogbonna
+Employee Name: ${profile.fullName || 'Debbie Ijogbonna'}
 Net Salary Stated: ₦250,000
 OCR Readability Flag: Font is blurry and distorted. Bottom section showing HR certification stamp is missing or cropped out. Deductions contain statutory arithmetic mismatches.`,
     id_mismatch: `GOVERNMENT ID PRESET CONTENT
@@ -201,13 +201,13 @@ Type: National Identification Number (NIN) Slip
 Cardholder Name: Deborah Ijogbonna
 NIN ID: 48392019483
 Status: Active, unexpired.
-KYC Flag: Cardholder first name is 'Deborah' but BorrowRight user profile first name is listed as 'Debbie'. This will trigger AML name-matching verification failures.`,
+KYC Flag: Cardholder first name is 'Deborah' but BorrowRight user profile first name is listed as '${profile.fullName || 'Debbie'}'. This will trigger AML name-matching verification failures.`,
     letter_good: `EMPLOYMENT LETTER PRESET CONTENT
 Letterhead: Interswitch Limited (RC-930492)
 Date: March 12, 2026
 Subject: Employment Verification Statement
-This is to certify that Ms. Debbie Ijogbonna is employed on a full-time basis as a Senior Systems Engineer since March 2026.
-Compensation: Stated monthly salary is ₦350,000.
+This is to certify that Ms./Mr. ${profile.fullName || 'Debbie Ijogbonna'} is employed on a full-time basis as a Senior Systems Engineer since March 2026.
+Compensation: Stated monthly salary is ₦${(profile.monthlyIncome || 350000).toLocaleString()}.
 Signatory: Signed by HR Director and stamped with official corporate seal.`
   };
 

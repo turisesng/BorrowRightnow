@@ -21,6 +21,7 @@ export interface UserProfile {
   nin?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  avatarUrl?: string;
 }
 
 export interface FinancialHealthScore {

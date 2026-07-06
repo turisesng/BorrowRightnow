@@ -4,7 +4,24 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, Debt, ScamReport, SupportTicket, AuditLog, SystemSettings, FinancialHealthScore } from '../types';
+import { UserProfile, Debt, ScamReport, SupportTicket, AuditLog, SystemSettings, FinancialHealthScore, Lender, LenderProduct } from '../types';
+import { mockLenders, mockProducts } from '../data/mockLenders';
+import {
+  getSupabase,
+  isSupabaseConfigured,
+  fetchLenders,
+  fetchProducts,
+  fetchUserProfile,
+  saveUserProfile,
+  fetchUserDebts,
+  saveUserDebt,
+  deleteUserDebt,
+  fetchScamReports,
+  submitScamReport,
+  updateScamReportStatus,
+  fetchSupportTickets,
+  createSupportTicket
+} from '../lib/supabase';
 
 interface AppContextType {
   profile: UserProfile;
@@ -30,26 +47,43 @@ interface AppContextType {
   setIsAdmin: (isAdmin: boolean) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  
+  // Supabase states & operations
+  supabaseUser: any | null;
+  lenders: Lender[];
+  products: LenderProduct[];
+  isSupabaseSynced: boolean;
+  isSupabaseConfigured: boolean;
+  signUpWithSupabase: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signInWithSupabase: (email: string, password: string) => Promise<{ error: any }>;
+  signOutSupabase: () => Promise<void>;
+  signInWithPhone: (phone: string) => Promise<{ error: any }>;
+  signInWithEmailOtp: (email: string) => Promise<{ error: any }>;
+  verifyOtpToken: (phoneOrEmail: string, token: string, type: 'sms' | 'email') => Promise<{ error: any }>;
+  signInWithProvider: (provider: 'google' | 'apple') => Promise<{ error: any }>;
+  sendPasswordReset: (email: string) => Promise<{ error: any }>;
+  updatePasswordWithSupabase: (password: string) => Promise<{ error: any }>;
 }
 
 const defaultProfile: UserProfile = {
-  fullName: 'Debbie Ijogbonna',
+  fullName: '',
   gender: 'Female',
-  dateOfBirth: '1998-04-12',
-  phone: '+234 812 345 6789',
-  email: 'ijogbonnadebbie@gmail.com',
-  state: 'Lagos',
-  city: 'Ikeja',
+  dateOfBirth: '',
+  phone: '',
+  email: '',
+  state: '',
+  city: '',
   employmentStatus: 'Employed',
-  employer: 'Interswitch Group',
-  occupation: 'Senior Software QA',
-  monthlyIncome: 350000,
+  employer: '',
+  occupation: '',
+  monthlyIncome: 0,
   incomeFrequency: 'Monthly',
-  financialGoals: ['Pay off personal debts', 'Acquire SME business loan', 'Establish 3-Month Emergency Fund'],
-  bvn: '222******34',
-  nin: '483******91',
-  emergencyContactName: 'Bose Ijogbonna',
-  emergencyContactPhone: '+234 803 987 6543'
+  financialGoals: [],
+  bvn: '',
+  nin: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  avatarUrl: ''
 };
 
 const defaultDebts: Debt[] = [
@@ -123,6 +157,13 @@ const defaultAuditLogs: AuditLog[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Supabase connection states
+  const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
+  const [lenders, setLenders] = useState<Lender[]>(mockLenders);
+  const [products, setProducts] = useState<LenderProduct[]>(mockProducts);
+  const [isSupabaseSynced, setIsSupabaseSynced] = useState<boolean>(false);
+  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean>(isSupabaseConfigured());
+
   const [profile, setProfileState] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('br_profile');
     return saved ? JSON.parse(saved) : defaultProfile;
@@ -162,16 +203,231 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [notifications, setNotifications] = useState<string[]>([
-    'Welcome back Debbie! Check your revised Financial Health Score today.',
+    'Welcome back! Check your revised Financial Health Score today.',
     'ALERT: 2 verified loan scams added to the directory. Beware of "NairaExpress".',
     'Your Carbon Microfinance loan payment of ₦27,500 is due in 23 days.'
   ]);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
+  // Monitor Supabase Configuration changes
   useEffect(() => {
-    localStorage.setItem('br_profile', JSON.stringify(profile));
-  }, [profile]);
+    setSupabaseConfigured(isSupabaseConfigured());
+  }, [(import.meta as any).env.VITE_SUPABASE_URL, (import.meta as any).env.VITE_SUPABASE_ANON_KEY]);
+
+  // Fetch and Sync Lenders and Products (and setup real-time subscriptions)
+  useEffect(() => {
+    if (!supabaseConfigured) {
+      setLenders(mockLenders);
+      setProducts(mockProducts);
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const loadLendersAndProducts = async () => {
+      try {
+        let dbLenders = await fetchLenders();
+        let dbProducts = await fetchProducts();
+
+        // Automatically seed if empty! This ensures a beautiful experience.
+        if (dbLenders.length === 0 && dbProducts.length === 0) {
+          console.log('Database empty, seeding default lenders and products...');
+          // Seed lenders
+          const { error: lErr } = await supabase
+            .from('lenders')
+            .insert(mockLenders.map(l => ({
+              id: l.id,
+              name: l.name,
+              type: l.type,
+              license_number: l.licenseNumber,
+              regulator: l.regulator,
+              rating: l.rating,
+              rating_count: l.ratingCount,
+              website: l.website,
+              contact_email: l.contactEmail,
+              contact_phone: l.contactPhone,
+              complaints_process: l.complaintsProcess,
+              consumer_rights: l.consumerRights,
+              digital_only: l.digitalOnly,
+              approval_speed: l.approvalSpeed,
+              min_income_required: l.minIncomeRequired
+            })));
+
+          if (lErr) {
+            console.error('Error seeding lenders:', lErr);
+          }
+
+          // Seed products
+          const { error: pErr } = await supabase
+            .from('lender_products')
+            .insert(mockProducts.map(p => ({
+              id: p.id,
+              lender_id: p.lenderId,
+              name: p.name,
+              min_amount: p.minAmount,
+              max_amount: p.maxAmount,
+              min_interest_rate: p.minInterestRate,
+              max_interest_rate: p.maxInterestRate,
+              apr: p.apr,
+              processing_fee: p.processingFee,
+              min_tenor: p.minTenor,
+              max_tenor: p.maxTenor,
+              collateral_required: p.collateralRequired,
+              requirements: p.requirements
+            })));
+
+          if (pErr) {
+            console.error('Error seeding products:', pErr);
+          }
+
+          dbLenders = await fetchLenders();
+          dbProducts = await fetchProducts();
+        }
+
+        setLenders(dbLenders);
+        setProducts(dbProducts);
+      } catch (err) {
+        console.error('Error loading lenders/products:', err);
+      }
+    };
+
+    loadLendersAndProducts();
+
+    // Subscribe to real-time changes
+    const lendersChannel = supabase
+      .channel('public:lenders')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lenders' },
+        async () => {
+          console.log('Realtime update: lenders table changed.');
+          const updatedLenders = await fetchLenders();
+          setLenders(updatedLenders);
+        }
+      )
+      .subscribe();
+
+    const productsChannel = supabase
+      .channel('public:lender_products')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lender_products' },
+        async () => {
+          console.log('Realtime update: lender_products table changed.');
+          const updatedProducts = await fetchProducts();
+          setProducts(updatedProducts);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(lendersChannel);
+      supabase.removeChannel(productsChannel);
+    };
+  }, [supabaseConfigured]);
+
+  // Auth Listener
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSupabaseUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabaseConfigured]);
+
+  // Sync Supabase Data on authentication
+  useEffect(() => {
+    const loadSupabaseData = async () => {
+      if (!supabaseUser) {
+        setIsSupabaseSynced(false);
+        return;
+      }
+
+      try {
+        // 1. Fetch Profile
+        const dbProfile = await fetchUserProfile(supabaseUser.id);
+        if (dbProfile) {
+          setProfileState(dbProfile);
+        } else {
+          // If profile doesn't exist in DB, create it with user's Auth metadata
+          const meta = supabaseUser.user_metadata || {};
+          const email = supabaseUser.email || meta.email || '';
+          const fullName = meta.full_name || meta.name || email.split('@')[0] || 'BorrowRight User';
+          const phone = supabaseUser.phone || '';
+          
+          const initialProfile: UserProfile = {
+            fullName,
+            gender: 'Male',
+            dateOfBirth: '2000-01-01',
+            phone,
+            email,
+            state: 'Lagos',
+            city: 'Ikeja',
+            employmentStatus: 'Employed',
+            employer: '',
+            occupation: '',
+            monthlyIncome: 100000,
+            incomeFrequency: 'Monthly',
+            financialGoals: [],
+            bvn: '',
+            nin: '',
+            emergencyContactName: '',
+            emergencyContactPhone: ''
+          };
+          
+          await saveUserProfile(supabaseUser.id, initialProfile);
+          setProfileState(initialProfile);
+        }
+
+        // 2. Fetch Debts
+        const dbDebts = await fetchUserDebts(supabaseUser.id);
+        if (dbDebts && dbDebts.length > 0) {
+          setDebtsState(dbDebts);
+        }
+
+        // 3. Fetch Support Tickets
+        const dbTickets = await fetchSupportTickets(supabaseUser.id);
+        if (dbTickets && dbTickets.length > 0) {
+          setSupportTicketsState(dbTickets);
+        }
+
+        // 4. Fetch Lenders & Products
+        // Handled by independent active syncing listener effect
+
+        // 5. Fetch Scam Reports
+        const dbScams = await fetchScamReports();
+        if (dbScams && dbScams.length > 0) {
+          setScamReportsState(dbScams);
+        }
+
+        setIsSupabaseSynced(true);
+        addNotification('Connected to Supabase cloud! Data synchronized.');
+      } catch (err) {
+        console.error('Error syncing with Supabase:', err);
+      }
+    };
+
+    loadSupabaseData();
+  }, [supabaseUser]);
+
+  useEffect(() => {
+    if (!supabaseUser) {
+      localStorage.setItem('br_profile', JSON.stringify(profile));
+    }
+  }, [profile, supabaseUser]);
 
   useEffect(() => {
     if (healthScore) {
@@ -180,24 +436,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [healthScore]);
 
   useEffect(() => {
-    localStorage.setItem('br_debts', JSON.stringify(debts));
-  }, [debts]);
+    if (!supabaseUser) {
+      localStorage.setItem('br_debts', JSON.stringify(debts));
+    }
+  }, [debts, supabaseUser]);
 
   useEffect(() => {
-    localStorage.setItem('br_scam_reports', JSON.stringify(scamReports));
-  }, [scamReports]);
+    if (!supabaseUser) {
+      localStorage.setItem('br_scam_reports', JSON.stringify(scamReports));
+    }
+  }, [scamReports, supabaseUser]);
 
   useEffect(() => {
-    localStorage.setItem('br_support_tickets', JSON.stringify(supportTickets));
-  }, [supportTickets]);
+    if (!supabaseUser) {
+      localStorage.setItem('br_support_tickets', JSON.stringify(supportTickets));
+    }
+  }, [supportTickets, supabaseUser]);
 
   useEffect(() => {
     localStorage.setItem('br_audit_logs', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
-  const setProfile = (newProfile: UserProfile) => {
+  const setProfile = async (newProfile: UserProfile) => {
     setProfileState(newProfile);
     addAuditLog(profile.email, 'UPDATE_PROFILE', 'Modified profile fields and financial goals.');
+    
+    if (supabaseUser) {
+      await saveUserProfile(supabaseUser.id, newProfile);
+    }
   };
 
   const setHealthScore = (score: FinancialHealthScore) => {
@@ -205,17 +471,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog(profile.email, 'HEALTH_CALC', `Recalculated score: ${score.score}/100.`);
   };
 
-  const setDebts = (newDebts: Debt[]) => {
+  const setDebts = async (newDebts: Debt[]) => {
+    const oldDebts = debts;
     setDebtsState(newDebts);
     addAuditLog(profile.email, 'DEBTS_SYNC', `Updated outstanding debts list (total ${newDebts.length}).`);
+
+    if (supabaseUser) {
+      try {
+        // Find deleted debts
+        const deleted = oldDebts.filter(od => !newDebts.some(nd => nd.id === od.id));
+        for (const d of deleted) {
+          await deleteUserDebt(d.id);
+        }
+
+        // Find added or updated debts
+        const addedOrUpdated = newDebts.filter(nd => {
+          const old = oldDebts.find(od => od.id === nd.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(nd);
+        });
+
+        for (const d of addedOrUpdated) {
+          const saved = await saveUserDebt(supabaseUser.id, d);
+          if (saved) {
+            setDebtsState(prev => prev.map(item => item.id === d.id ? saved : item));
+          }
+        }
+      } catch (e) {
+        console.error('Error syncing debts with Supabase:', e);
+      }
+    }
   };
 
-  const setScamReports = (newReports: ScamReport[]) => {
+  const setScamReports = async (newReports: ScamReport[]) => {
+    const oldReports = scamReports;
     setScamReportsState(newReports);
+
+    if (supabaseUser) {
+      try {
+        // Find newly added reports
+        const added = newReports.filter(nr => !oldReports.some(or => or.id === nr.id));
+        for (const r of added) {
+          const saved = await submitScamReport(r, supabaseUser.id);
+          if (saved) {
+            setScamReportsState(prev => prev.map(item => item.id === r.id ? saved : item));
+          }
+        }
+
+        // Find updated reports (status or details changed)
+        const updated = newReports.filter(nr => {
+          const old = oldReports.find(or => or.id === nr.id);
+          return old && (old.status !== nr.status || old.analysisReason !== nr.analysisReason);
+        });
+
+        for (const r of updated) {
+          if (!r.id.startsWith('scam-')) {
+            await updateScamReportStatus(r.id, r.status as any, r.analysisReason);
+          }
+        }
+      } catch (e) {
+        console.error('Error syncing scam reports with Supabase:', e);
+      }
+    }
   };
 
-  const setSupportTickets = (newTickets: SupportTicket[]) => {
+  const setSupportTickets = async (newTickets: SupportTicket[]) => {
+    const oldTickets = supportTickets;
     setSupportTicketsState(newTickets);
+
+    if (supabaseUser) {
+      try {
+        // Find newly added tickets
+        const added = newTickets.filter(nt => !oldTickets.some(ot => ot.id === nt.id));
+        for (const t of added) {
+          const saved = await createSupportTicket(t, supabaseUser.id);
+          if (saved) {
+            setSupportTicketsState(prev => prev.map(item => item.id === t.id ? saved : item));
+          }
+        }
+
+        // Find updated tickets
+        const updated = newTickets.filter(nt => {
+          const old = oldTickets.find(ot => ot.id === nt.id);
+          return old && old.status !== nt.status;
+        });
+
+        for (const t of updated) {
+          if (!t.id.startsWith('ticket-')) {
+            const supabase = getSupabase();
+            if (supabase) {
+              await supabase.from('support_tickets').update({ status: t.status }).eq('id', t.id);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error syncing support tickets with Supabase:', e);
+      }
+    }
   };
 
   const addAuditLog = (actorEmail: string, action: string, details: string) => {
@@ -227,6 +578,160 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
     setAuditLogs(prev => [newLog, ...prev]);
+
+    // Save to Supabase if logged in
+    const supabase = getSupabase();
+    if (supabase && supabaseUser) {
+      supabase.from('audit_logs').insert({
+        actor_id: supabaseUser.id,
+        actor_email: actorEmail,
+        action,
+        details,
+        timestamp: newLog.timestamp
+      }).then(({ error }) => {
+        if (error) console.error('Error writing audit log to Supabase:', error);
+      });
+    }
+  };
+
+  const signUpWithSupabase = async (email: string, password: string, fullName: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        }
+      }
+    });
+
+    if (error) return { error };
+
+    if (data.user) {
+      const initialProfile: UserProfile = {
+        ...profile,
+        fullName,
+        email,
+      };
+      await saveUserProfile(data.user.id, initialProfile);
+      setProfileState(initialProfile);
+      setSupabaseUser(data.user);
+    }
+
+    return { error: null };
+  };
+
+  const signInWithSupabase = async (email: string, password: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) return { error };
+
+    if (data.user) {
+      setSupabaseUser(data.user);
+    }
+
+    return { error: null };
+  };
+
+  const signOutSupabase = async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setSupabaseUser(null);
+    setIsSupabaseSynced(false);
+    setProfileState(defaultProfile);
+    setDebtsState(defaultDebts);
+    setScamReportsState(defaultScamReports);
+    setSupportTicketsState(defaultSupportTickets);
+    setLenders(mockLenders);
+    setProducts(mockProducts);
+    addNotification('Logged out from Supabase cloud session.');
+  };
+
+  const signInWithPhone = async (phone: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    const { data, error } = await supabase.auth.signInWithOtp({ phone });
+    return { error };
+  };
+
+  const signInWithEmailOtp = async (email: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    const { data, error } = await supabase.auth.signInWithOtp({ email });
+    return { error };
+  };
+
+  const verifyOtpToken = async (phoneOrEmail: string, token: string, type: 'sms' | 'email') => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    
+    const verifyParams: any = {
+      token,
+    };
+    
+    if (type === 'sms') {
+      verifyParams.phone = phoneOrEmail;
+      verifyParams.type = 'sms';
+    } else {
+      verifyParams.email = phoneOrEmail;
+      verifyParams.type = 'magiclink';
+    }
+
+    let { data, error } = await supabase.auth.verifyOtp(verifyParams);
+    
+    if (error && type === 'email') {
+      verifyParams.type = 'signup';
+      const retry = await supabase.auth.verifyOtp(verifyParams);
+      if (!retry.error) {
+        data = retry.data;
+        error = null;
+      }
+    }
+
+    if (error) return { error };
+    if (data.user) {
+      setSupabaseUser(data.user);
+    }
+    return { error: null };
+  };
+
+  const signInWithProvider = async (provider: 'google' | 'apple') => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    return { error };
+  };
+
+  const sendPasswordReset = async (email: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    return { error };
+  };
+
+  const updatePasswordWithSupabase = async (password: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: { message: 'Supabase is not configured yet.' } };
+    const { data, error } = await supabase.auth.updateUser({ password });
+    return { error };
   };
 
   const addNotification = (msg: string) => {
@@ -266,7 +771,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAdmin,
         setIsAdmin,
         theme,
-        toggleTheme
+        toggleTheme,
+        
+        // Supabase values
+        supabaseUser,
+        lenders,
+        products,
+        isSupabaseSynced,
+        isSupabaseConfigured: supabaseConfigured,
+        signUpWithSupabase,
+        signInWithSupabase,
+        signOutSupabase,
+        signInWithPhone,
+        signInWithEmailOtp,
+        verifyOtpToken,
+        signInWithProvider,
+        sendPasswordReset,
+        updatePasswordWithSupabase
       }}
     >
       <div className={theme === 'dark' ? 'dark bg-slate-950 text-slate-100 min-h-screen' : 'bg-slate-50 text-slate-900 min-h-screen'}>
@@ -281,3 +802,4 @@ export const useApp = () => {
   if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };
+

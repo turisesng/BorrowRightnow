@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { mockLenders, mockKnowledgeBase } from '../data/mockLenders';
+import { mockKnowledgeBase } from '../data/mockLenders';
 import { 
   Search, ShieldCheck, ShieldAlert, FileText, AlertTriangle, 
   MessageSquare, ArrowRight, CheckCircle2, AlertOctagon, X, 
@@ -101,7 +101,7 @@ Key resolutions:
 ];
 
 export const ComplianceHub: React.FC = () => {
-  const { scamReports, setScamReports, addAuditLog, addNotification } = useApp();
+  const { scamReports, setScamReports, addAuditLog, addNotification, lenders } = useApp();
   const [activeSubView, setActiveSubView] = useState<'verify' | 'rights' | 'report' | 'regulatory'>('verify');
   
   // Regulatory updates states
@@ -205,7 +205,7 @@ export const ComplianceHub: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
 
   // Real-time search and category filter
-  const verifiedLenders = mockLenders.filter(l => {
+  const verifiedLenders = lenders.filter(l => {
     const matchesSearch = 
       l.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       l.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -340,7 +340,7 @@ export const ComplianceHub: React.FC = () => {
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${verifiedLenders.length > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                 </span>
                 <span>
-                  Showing {verifiedLenders.length} of {mockLenders.length} licensed institutions
+                  Showing {verifiedLenders.length} of {lenders.length} licensed institutions
                 </span>
               </div>
               

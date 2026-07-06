@@ -845,7 +845,7 @@ app.post('/api/lenders/compare-best-choice', async (req, res) => {
       analysisResult = {
         bestChoiceId: best.id,
         bestChoiceName: name,
-        recommendationSummary: `${best.lenderName} is recommended as the prime option primarily due to its lower Annual Percentage Rate (APR) of ${best.apr}%, resulting in the lowest cumulative interest drain. For Debbie Ijogbonna's monthly income of ₦${(profile?.monthlyIncome || 350000).toLocaleString()}, this keeps debt-service-to-income (DTI) ratios within highly safe margins.`,
+        recommendationSummary: `${best.lenderName} is recommended as the prime option primarily due to its lower Annual Percentage Rate (APR) of ${best.apr}%, resulting in the lowest cumulative interest drain. For ${profile?.fullName || 'the user'}'s monthly income of ₦${(profile?.monthlyIncome || 350000).toLocaleString()}, this keeps debt-service-to-income (DTI) ratios within highly safe margins.`,
         factors: {
           totalCost: {
             score: Math.max(50, Math.round(100 - (best.apr / 2))),
@@ -861,7 +861,7 @@ app.post('/api/lenders/compare-best-choice', async (req, res) => {
           },
           approvalProbability: {
             score: profile?.employmentStatus === 'Employed' ? 85 : 60,
-            comment: "Debbie's stable employment at Interswitch secures a strong underwriting profile."
+            comment: `${profile?.fullName || 'Your'} stable employment ${profile?.employer ? `at ${profile.employer}` : ''} secures a strong underwriting profile.`
           },
           customerSatisfaction: {
             score: 88,

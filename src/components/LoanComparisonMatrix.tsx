@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { LenderProduct, Lender } from '../types';
-import { mockLenders } from '../data/mockLenders';
 import { useApp } from '../context/AppContext';
 import { 
   Scale, 
@@ -84,7 +83,7 @@ export const LoanComparisonMatrix: React.FC<LoanComparisonMatrixProps> = ({
 }) => {
   if (products.length === 0) return null;
 
-  const { profile } = useApp();
+  const { profile, lenders } = useApp();
   const [bestChoice, setBestChoice] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +124,7 @@ export const LoanComparisonMatrix: React.FC<LoanComparisonMatrixProps> = ({
 
   // Retrieve lender metadata
   const getLenderInfo = (lenderId: string): Lender | undefined => {
-    return mockLenders.find(l => l.id === lenderId);
+    return lenders.find(l => l.id === lenderId);
   };
 
   // Find optimal metrics for highlighting
@@ -247,7 +246,7 @@ export const LoanComparisonMatrix: React.FC<LoanComparisonMatrixProps> = ({
                 </div>
                 <div className="pt-2 border-t border-blue-500/10">
                   <p className="text-[9.5px] text-slate-400 font-semibold italic flex items-center gap-1">
-                    <Info className="h-3.5 w-3.5 flex-shrink-0" /> Affordability mapped to Debbie's ₦{(profile.monthlyIncome).toLocaleString()} income stream.
+                    <Info className="h-3.5 w-3.5 flex-shrink-0" /> Affordability mapped to {profile.fullName ? `${profile.fullName}'s` : "your"} ₦{(profile.monthlyIncome).toLocaleString()} income stream.
                   </p>
                 </div>
               </div>
@@ -647,7 +646,7 @@ export const LoanComparisonMatrix: React.FC<LoanComparisonMatrixProps> = ({
                 Action
               </td>
               {products.map(prod => {
-                const website = mockLenders.find(l => l.id === prod.lenderId)?.website || '#';
+                const website = lenders.find(l => l.id === prod.lenderId)?.website || '#';
                 return (
                   <td key={prod.id} className="py-4 px-5 border-l border-slate-100 dark:border-slate-850">
                     <a
