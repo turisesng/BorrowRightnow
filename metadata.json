@@ -1,0 +1,6 @@
+{
+  "name": "BorrowRight AI",
+  "description": "An AI-powered digital lending advisory platform to assess financial health, compare licensed lenders, calculate loan eligibility, detect lending scams, and receive personalized debt management coaching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
